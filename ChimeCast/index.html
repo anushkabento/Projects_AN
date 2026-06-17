@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChimeCast - Weather Windchimes & Global Map</title>
+    <!-- Include Leaflet.js CSS for the Map Card -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        :root {
+            --bg-sky-top: #ffb3a7;
+            --bg-sky-bottom: #fcd5ce;
+            --primary-pink: #ffb5a7;
+            --warm-orange: #fcc482;
+            --accent-coral: #f4978e;
+            --text-dark: #6d5957;
+            --chime-wood: #d4a373;
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            
+            /* Dynamic Chime Material Variables */
+            --tube-bg: linear-gradient(to right, #f4f1de, #e0b1cb, #f4f1de);
+            --tube-width: 10px;
+            --tube-radius: 0 0 5px 5px;
+            --container-width: 85px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Quicksand', 'Nunito', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-sky-top), var(--bg-sky-bottom), #fae1dd);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-dark);
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .app-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 32px;
+            width: 100%;
+            max-width: 460px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(244, 151, 142, 0.25);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            color: #e56b6f;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+
+        /* Search Controls */
+        .search-box {
+            display: flex;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 50px;
+            padding: 6px 6px 6px 18px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.02);
+            margin-bottom: 15px;
+        }
+
+        .search-box:focus-within {
+            border-color: var(--accent-coral);
+            box-shadow: 0 8px 20px rgba(244, 151, 142, 0.15);
+        }
+
+        .search-box input {
+            border: none;
+            background: transparent;
+            outline: none;
+            flex: 1;
+            font-size: 1rem;
+            color: var(--text-dark);
+        }
+
+        .search-box input::placeholder {
+            color: #b5a6a5;
+        }
+
+        .search-box button {
+            background: linear-gradient(135deg, var(--accent-coral), var(--warm-orange));
+            border: none;
+            color: white;
+            padding: 10px 22px;
+            border-radius: 50px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .search-box button:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 12px rgba(244, 151, 142, 0.3);
+        }
+
+        /* Chime Selector Bar */
+        .chime-selector {
+            display: flex;
+            justify-content: flex-start;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 8px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        
+        .chime-selector::-webkit-scrollbar {
+            display: none;
+        }
+
+        .chime-option {
+            background: transparent;
+            border: none;
+            font-size: 1.1rem;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .chime-option span {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            opacity: 0.7;
+            white-space: nowrap;
+        }
+
+        .chime-option:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .chime-option.active {
+            background: white;
+            box-shadow: 0 4px 10px rgba(244, 151, 142, 0.2);
+            transform: scale(1.05);
+        }
+
+        .chime-option.active span {
+            opacity: 1;
+            color: #e56b6f;
+        }
+
+        /* Windchime Visualization Container */
+        .chime-stage {
+            height: 240px;
+            position: relative;
+            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Windchime Structure */
+        .windchime {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 200px;
+        }
+
+        .top-mount {
+            width: 95px;
+            height: 12px;
+            background: var(--chime-wood);
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 3;
+            transition: all 0.3s ease;
+        }
+
+        .top-mount::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 44px;
+            width: 6px;
+            height: 20px;
+            background: #b5a6a5;
+            border-radius: 3px;
+        }
+
+        .tubes-container {
+            display: flex;
+            justify-content: space-between;
+            width: var(--container-width);
+            margin-top: 0px;
+            position: relative;
+            transition: width 0.3s ease;
+        }
+
+        .tube {
+            width: var(--tube-width);
+            background: var(--tube-bg);
+            border-radius: var(--tube-radius);
+            box-shadow: 1px 3px 5px rgba(0,0,0,0.1);
+            transform-origin: top center;
+            transition: transform 0.1s linear, background 0.3s ease, width 0.3s ease, border-radius 0.3s ease, height 0.3s ease;
+        }
+
+        /* Alternating tube heights */
+        .tube-1 { height: 90px; }
+        .tube-2 { height: 110px; }
+        .tube-3 { height: 130px; }
+        .tube-4 { height: 105px; }
+        .tube-5 { height: 85px; }
+
+        /* Center clapper and sail string */
+        .center-string {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            width: 2px;
+            height: 140px;
+            background: rgba(109, 89, 87, 0.4);
+            transform-origin: top center;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.1s linear;
+        }
+
+        .clapper {
+            width: 22px;
+            height: 22px;
+            background: var(--chime-wood);
+            border-radius: 50%;
+            position: absolute;
+            top: 75px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+        }
+
+        .sail {
+            width: 35px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--warm-orange), var(--accent-coral));
+            clip-path: polygon(50% 0%, 100% 70%, 50% 100%, 0% 70%);
+            position: absolute;
+            top: 140px;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(244, 151, 142, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .sail-icon {
+            font-size: 1.2rem;
+            color: white;
+        }
+
+        /* Ambient effects inside stage */
+        .weather-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .petal {
+            position: absolute;
+            background: #ffccd5;
+            border-radius: 150% 0 150% 150%;
+            opacity: 0.7;
+            animation: fly linear infinite;
+        }
+
+        /* Weather Info Display */
+        .weather-info {
+            margin-top: 15px;
+        }
+
+        .location-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #d96066;
+            margin-bottom: 5px;
+        }
+
+        .temp-display {
+            font-size: 3.2rem;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+        }
+
+        .temp-unit {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-left: 2px;
+            color: var(--accent-coral);
+        }
+
+        .chime-reading {
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 20px;
+            padding: 15px;
+            font-size: 1rem;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            margin-bottom: 20px;
+            min-height: 68px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            padding: 12px;
+            border-radius: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #7a6361;
+        }
+
+        /* Map Box Customization */
+        .map-card {
+            background: rgba(255, 255, 255, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 24px;
+            padding: 8px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 160px;
+            border-radius: 18px;
+            z-index: 1;
+        }
+
+        /* Micro animations */
+        @keyframes fly {
+            0% { transform: translateY(-10px) translateX(0) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.8; }
+            90% { opacity: 0.8; }
+            100% { transform: translateY(250px) translateX(120px) rotate(360deg); opacity: 0; }
+        }
+
+        /* Audio toggle */
+        .audio-control {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: rgba(255,255,255,0.6);
+            border: none;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+            z-index: 10;
+        }
+
+        .audio-control:hover {
+            background: rgba(255,255,255,0.9);
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="app-container">
+        <button class="audio-control" id="audioToggle" title="Toggle Chime Sounds">🔔</button>
+        
+        <header>
+            <h1>ChimeCast</h1>
+            <p>Listen to the wind, read the chimes</p>
+        </header>
+
+        <div class="search-box">
+            <input type="text" id="cityInput" placeholder="Enter city, state or country..." value="Kyoto">
+            <button id="searchBtn">Search</button>
+        </div>
+
+        <div class="chime-selector">
+            <button class="chime-option active" data-chime="crystal">🔮<span>Crystal</span></button>
+            <button class="chime-option" data-chime="furin">🎐<span>Fūrin (🇯🇵)</span></button>
+            <button class="chime-option" data-chime="bamboo">🪵<span>Bamboo</span></button>
+            <button class="chime-option" data-chime="classic">🔔<span>Classic</span></button>
+            <button class="chime-option" data-chime="cosmic">⭐<span>Cosmic</span></button>
+            <button class="chime-option" data-chime="seashell">🐚<span>Shell</span></button>
+        </div>
+
+        <div class="chime-stage">
+            <div class="weather-effect" id="effectsLayer"></div>
+            
+            <div class="windchime">
+                <div class="top-mount" id="topMount"></div>
+                <div class="tubes-container" id="tubesContainer">
+                    <div class="tube tube-1" id="tube1"></div>
+                    <div class="tube tube-2" id="tube2"></div>
+                    <div class="tube tube-3" id="tube3"></div>
+                    <div class="tube tube-4" id="tube4"></div>
+                    <div class="tube tube-5" id="tube5"></div>
+                </div>
+                <div class="center-string" id="centerString">
+                    <div class="clapper" id="clapper"></div>
+                    <div class="sail" id="sail">
+                        <span class="sail-icon" id="sailIcon">🌸</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="weather-info">
+            <div class="location-name" id="locationName">Kyoto, Japan</div>
+            <div class="temp-display">
+                <span id="tempValue">22</span><span class="temp-unit">°C</span>
+            </div>
+            
+            <div class="chime-reading" id="chimeReading">
+                The chimes are swaying gently, whispering of a calm and delightful breeze.
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <span class="metric-label">Wind Speed</span>
+                    <span class="metric-value" id="windValue">2.5 m/s</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Atmosphere</span>
+                    <span class="metric-value" id="weatherDesc">Clear Sky</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Humidity</span>
+                    <span class="metric-value" id="humidityValue">45%</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Chime Mood</span>
+                    <span class="metric-value" id="chimeMood">Serene</span>
+                </div>
+            </div>
+            
+            <!-- Real-world Dynamic Map Box Element -->
+            <div class="map-card">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include Leaflet.js JS Map Framework -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = false;
+        let chimeInterval = null;
+        let currentWindSpeed = 2.5;
+        let map = null;
+        let mapMarker = null;
+
+        // Elements
+        const cityInput = document.getElementById('cityInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const locationName = document.getElementById('locationName');
+        const tempValue = document.getElementById('tempValue');
+        const chimeReading = document.getElementById('chimeReading');
+        const windValue = document.getElementById('windValue');
+        const weatherDesc = document.getElementById('weatherDesc');
+        const humidityValue = document.getElementById('humidityValue');
+        const chimeMood = document.getElementById('chimeMood');
+        const sailIcon = document.getElementById('sailIcon');
+        const effectsLayer = document.getElementById('effectsLayer');
+        const audioToggle = document.getElementById('audioToggle');
+        const topMount = document.getElementById('topMount');
+        const clapper = document.getElementById('clapper');
+        const sail = document.getElementById('sail');
+        const tubesContainer = document.getElementById('tubesContainer');
+
+        const tubes = [
+            document.getElementById('tube1'),
+            document.getElementById('tube2'),
+            document.getElementById('tube3'),
+            document.getElementById('tube4'),
+            document.getElementById('tube5')
+        ];
+        const centerString = document.getElementById('centerString');
+
+        // Initialize Map Box Instance using the standard OpenStreetMap styles requested
+        function initMap(lat, lon, locationTitle) {
+            if (map === null) {
+                // Initialize map exactly matching your configuration snippet
+                map = L.map('map', { zoomControl: false }).setView([lat, lon], 13);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 18
+                }).addTo(map);
+
+                mapMarker = L.marker([lat, lon]).addTo(map)
+                    .bindPopup(locationTitle || 'Current Chime Location')
+                    .openPopup();
+            } else {
+                map.setView([lat, lon], 13);
+                mapMarker.setLatLng([lat, lon]);
+                mapMarker.setPopupContent(locationTitle || 'Current Chime Location').openPopup();
+            }
+        }
+
+        // Chime Preset Profiles
+        const chimePresets = {
+            crystal: {
+                frequencies: [523.25, 587.33, 659.25, 783.99, 880.00],
+                waveType: 'sine', decay: 2.2, isFurin: false,
+                styles: {
+                    '--container-width': '85px', '--tube-bg': 'linear-gradient(to right, #ffccd5, #fcd5ce, #ffccd5)',
+                    '--tube-width': '10px', '--tube-radius': '0 0 5px 5px', '--chime-wood': '#e56b6f'
+                }
+            },
+            furin: {
+                frequencies: [880.00, 987.77, 1046.50],
+                waveType: 'sine', decay: 2.8, isFurin: true,
+                styles: {
+                    '--container-width': '0px',
+                    '--tube-bg': 'rgba(255,255,255,0.8)', '--tube-width': '0px',
+                    '--tube-radius': '50% 50%', '--chime-wood': 'rgba(255,255,255,0.7)'
+                }
+            },
+            bamboo: {
+                frequencies: [146.83, 164.81, 196.00, 220.00, 293.66],
+                waveType: 'triangle', decay: 0.6, isFurin: false,
+                styles: {
+                    '--container-width': '85px', '--tube-bg': 'linear-gradient(to right, #b48a53, #ddb892, #7f5539)',
+                    '--tube-width': '16px', '--tube-radius': '5px 5px 5px 5px', '--chime-wood': '#7f5539'
+                }
+            },
+            classic: {
+                frequencies: [261.63, 293.66, 329.63, 392.00, 440.00],
+                waveType: 'sine', decay: 3.5, isFurin: false,
+                styles: {
+                    '--container-width': '85px', '--tube-bg': 'linear-gradient(to right, #e9ecef, #f8f9fa, #dee2e6)',
+                    '--tube-width': '12px', '--tube-radius': '0 0 0 0', '--chime-wood': '#6d5957'
+                }
+            },
+            cosmic: {
+                frequencies: [587.33, 698.46, 880.00, 987.77, 1174.66],
+                waveType: 'sine', decay: 4.0, isFurin: false,
+                styles: {
+                    '--container-width': '85px', '--tube-bg': 'linear-gradient(to right, #fae1dd, #fcc482, #ffb5a7)',
+                    '--tube-width': '8px', '--tube-radius': '5px 5px 15px 15px', '--chime-wood': '#f4978e'
+                }
+            },
+            seashell: {
+                frequencies: [329.63, 349.23, 440.00, 523.25, 587.33],
+                waveType: 'triangle', decay: 0.4, isFurin: false,
+                styles: {
+                    '--container-width': '85px', '--tube-bg': 'linear-gradient(to right, #ffddd2, #ffffff, #e5989b)',
+                    '--tube-width': '18px', '--tube-radius': '0 10px 10px 10px', '--chime-wood': '#b5a6a5'
+                }
+            }
+        };
+
+        let selectedChime = 'crystal';
+
+        audioToggle.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            audioToggle.innerText = soundEnabled ? '🔊' : '🔔';
+            if(soundEnabled && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        });
+
+        function playChimeSound(pitchIndex) {
+            if (!soundEnabled) return;
+            
+            const preset = chimePresets[selectedChime];
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = preset.waveType;
+            const baseFreq = preset.frequencies[pitchIndex % preset.frequencies.length];
+            osc.frequency.setValueAtTime(baseFreq + (Math.random() * 4 - 2), audioCtx.currentTime);
+            
+            gainNode.gain.setValueAtTime(0.25, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + preset.decay);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + preset.decay);
+        }
+
+        let time = 0;
+        function updateChimePhysics(windSpeed) {
+            currentWindSpeed = windSpeed;
+            clearInterval(chimeInterval);
+            
+            let maxAngle = 0;
+            let speedFactor = 0;
+            let description = "";
+            let mood = "";
+            let icon = "🌸";
+
+            if (windSpeed < 1.5) {
+                maxAngle = 1.5; speedFactor = 0.5; mood = "Sleeping";
+                description = `The air is still. Your ${selectedChime} element hangs motionless, enjoying a warm daydream.`;
+                icon = "✨";
+            } else if (windSpeed < 3.5) {
+                maxAngle = 5; speedFactor = 1.2; mood = "Serene";
+                description = `A gentle sweet breeze. The ${selectedChime} assembly whispers softly against the sky.`;
+                icon = "🌸";
+            } else if (windSpeed < 7.0) {
+                maxAngle = 14; speedFactor = 2.8; mood = "Playful";
+                description = `A lively breeze! Your ${selectedChime} assembly sways and creates a happy harmony.`;
+                icon = "🍃";
+            } else if (windSpeed < 12.0) {
+                maxAngle = 26; speedFactor = 4.5; mood = "Energetic";
+                description = `Strong winds sweeping by! The ${selectedChime} body is dancing in a passionate symphony.`;
+                icon = "🍁";
+            } else {
+                maxAngle = 40; speedFactor = 7.0; mood = "Wild";
+                description = `A real storm! The ${selectedChime} configuration is singing fiercely with nature.`;
+                icon = "🌀";
+            }
+
+            chimeMood.innerText = mood;
+            chimeReading.innerText = description;
+            sailIcon.innerText = icon;
+
+            chimeInterval = setInterval(() => {
+                time += 0.05 * speedFactor;
+                const mainSwing = Math.sin(time) * maxAngle;
+                centerString.style.transform = `rotate(${mainSwing}deg)`;
+                
+                const activePreset = chimePresets[selectedChime];
+                
+                tubes.forEach((tube, index) => {
+                    if (activePreset.isFurin) return;
+                    const phaseOffset = index * 0.4;
+                    const tubeSwing = Math.sin(time + phaseOffset) * (maxAngle * 0.8);
+                    tube.style.transform = `rotate(${tubeSwing}deg)`;
+
+                    if (windSpeed >= 1.5 && Math.abs(mainSwing - tubeSwing) > (maxAngle * 0.5) && Math.random() < (0.03 * speedFactor)) {
+                        playChimeSound(index);
+                        tube.style.filter = "brightness(1.25)";
+                        setTimeout(() => tube.style.filter = "none", 80);
+                    }
+                });
+
+                if (activePreset.isFurin && windSpeed >= 1.5 && Math.random() < (0.015 * speedFactor)) {
+                    playChimeSound(Math.floor(Math.random() * 3));
+                    clapper.style.transform = 'scale(1.3)';
+                    setTimeout(() => clapper.style.transform = 'scale(1)', 100);
+                }
+            }, 30);
+        }
+
+        document.querySelectorAll('.chime-option').forEach(button => {
+            button.addEventListener('click', (e) => {
+                document.querySelectorAll('.chime-option').forEach(btn => btn.classList.remove('active'));
+                const targetedButton = e.target.closest('.chime-option');
+                targetedButton.classList.add('active');
+
+                selectedChime = targetedButton.dataset.chime;
+                const activePreset = chimePresets[selectedChime];
+
+                for (const [property, value] of Object.entries(activePreset.styles)) {
+                    document.documentElement.style.setProperty(property, value);
+                }
+
+                if (activePreset.isFurin) {
+                    topMount.style.width = '45px';
+                    topMount.style.height = '45px';
+                    topMount.style.borderRadius = '50%';
+                    topMount.style.background = 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9) 0%, rgba(244,151,142,0.4) 70%, rgba(229,107,111,0.6) 100%)';
+                    topMount.style.border = '1px solid rgba(255,255,255,0.6)';
+                    
+                    clapper.style.width = '8px';
+                    clapper.style.height = '8px';
+                    clapper.style.borderRadius = '50%';
+                    clapper.style.backgroundColor = '#e56b6f';
+                    clapper.style.top = '60px';
+
+                    sail.style.width = '24px';
+                    sail.style.height = '75px';
+                    sail.style.clipPath = 'none';
+                    sail.style.borderRadius = '2px';
+                    sail.style.background = 'linear-gradient(to bottom, #ffffff, #ffccd5)';
+                    
+                    tubes.forEach(t => t.style.height = '0px');
+                } else {
+                    topMount.style.width = '95px';
+                    topMount.style.height = '12px';
+                    topMount.style.borderRadius = '6px';
+                    topMount.style.background = activePreset.styles['--chime-wood'];
+                    topMount.style.border = 'none';
+                    
+                    clapper.style.width = '22px';
+                    clapper.style.height = '22px';
+                    clapper.style.borderRadius = '50%';
+                    clapper.style.backgroundColor = activePreset.styles['--chime-wood'];
+                    clapper.style.top = '75px';
+
+                    sail.style.width = '35px';
+                    sail.style.height = '50px';
+                    sail.style.clipPath = 'polygon(50% 0%, 100% 70%, 50% 100%, 0% 70%)';
+                    sail.style.background = 'linear-gradient(135deg, var(--warm-orange), var(--accent-coral))';
+                    
+                    tubes[0].style.height = '90px';
+                    tubes[1].style.height = '110px';
+                    tubes[2].style.height = '130px';
+                    tubes[3].style.height = '105px';
+                    tubes[4].style.height = '85px';
+                }
+
+                updateChimePhysics(currentWindSpeed);
+            });
+        });
+
+        function generateEffects(weatherType) {
+            effectsLayer.innerHTML = '';
+            let particleCount = 15;
+            let color = "#ffccd5"; 
+            
+            if (weatherType.includes("rain")) {
+                particleCount = 40; color = "#a2d2ff";
+            } else if (weatherType.includes("cloud") || weatherType.includes("overcast")) {
+                particleCount = 10; color = "#f0ead6";
+            } else if (weatherType.includes("snow")) {
+                particleCount = 30; color = "#ffffff";
+            }
+
+            for(let i=0; i<particleCount; i++) {
+                const petal = document.createElement('div');
+                petal.classList.add('petal');
+                petal.style.left = Math.random() * 100 + '%';
+                petal.style.top = -20 + 'px';
+                petal.style.width = (Math.random() * 8 + 6) + 'px';
+                petal.style.height = (Math.random() * 12 + 6) + 'px';
+                petal.style.backgroundColor = color;
+                if(weatherType.includes("rain")) {
+                    petal.style.borderRadius = "50% 50% 50% 50% / 80% 80% 20% 20%";
+                }
+                petal.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                petal.style.animationDelay = (Math.random() * 5) + 's';
+                effectsLayer.appendChild(petal);
+            }
+        }
+
+        async function fetchWeather(city) {
+            try {
+                const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`);
+                const geoData = await geoRes.json();
+                
+                if (!geoData.results || geoData.results.length === 0) {
+                    alert("🌸 Couldn't find that place. Please check your spelling!");
+                    return;
+                }
+                
+                const location = geoData.results[0];
+                const lat = location.latitude;
+                const lon = location.longitude;
+                
+                // FIXED DUPLICATE NAMES ISSUE: Clean logic formatting location elements beautifully
+                const statePart = (location.admin1 && location.admin1.toLowerCase() !== location.name.toLowerCase()) ? `, ${location.admin1}` : "";
+                const countryPart = (location.country && location.country.toLowerCase() !== location.name.toLowerCase() && (!location.admin1 || location.country.toLowerCase() !== location.admin1.toLowerCase())) ? `, ${location.country}` : "";
+                const displayName = location.name + statePart + countryPart;
+
+                const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`);
+                const weatherData = await weatherRes.json();
+                const current = weatherData.current;
+                
+                locationName.innerText = displayName;
+                tempValue.innerText = Math.round(current.temperature_2m);
+                windValue.innerText = current.wind_speed_10m.toFixed(1) + " m/s";
+                humidityValue.innerText = current.relative_humidity_2m + "%";
+                
+                const codeMap = {
+                    0: "Clear Sky", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast",
+                    45: "Foggy", 48: "Depositing Rime Fog", 51: "Light Drizzle", 53: "Drizzle",
+                    55: "Dense Drizzle", 61: "Slight Rain", 63: "Moderate Rain", 65: "Heavy Rain",
+                    71: "Slight Snow", 73: "Moderate Snow", 75: "Heavy Snow", 80: "Rain Showers"
+                };
+                
+                const condition = codeMap[current.weather_code] || "Lovely Day";
+                weatherDesc.innerText = condition;
+
+                updateChimePhysics(current.wind_speed_10m);
+                generateEffects(condition.toLowerCase());
+                
+                // Integrated requested map popup setup cleanly
+                initMap(lat, lon, `<b>${location.name}</b><br>Chimes are singing!`);
+
+            } catch (error) {
+                console.error("Weather fetching error:", error);
+                fallbackMockData(city);
+            }
+        }
+
+        function fallbackMockData(city) {
+            locationName.innerText = city.charAt(0).toUpperCase() + city.slice(1);
+            const mockWind = (Math.random() * 14).toFixed(1);
+            tempValue.innerText = Math.floor(Math.random() * 15) + 15;
+            windValue.innerText = mockWind + " m/s";
+            weatherDesc.innerText = "Sunny & Breezy";
+            humidityValue.innerText = Math.floor(Math.random() * 40) + 40 + "%";
+            
+            updateChimePhysics(parseFloat(mockWind));
+            generateEffects("clear");
+            initMap(35.0116, 135.7681, "<b>Kyoto</b><br>Sweet Dreamland Fallback");
+        }
+
+        searchBtn.addEventListener('click', () => fetchWeather(cityInput.value));
+        cityInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') fetchWeather(cityInput.value);
+        });
+
+        // Initialize default setup
+        fetchWeather('Kyoto');
+    </script>
+</body>
+</html>
