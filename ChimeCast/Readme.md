@@ -61,3 +61,7 @@ Users can search for locations worldwide and experience local weather conditions
 * Additional chime styles and sound profiles
 * Progressive Web App (PWA) support
 * Enhanced environmental visual effects
+
+##screenshots
+* dashboard is displayed in Chimecast dashboard,chimes.png
+* weather display of kyoto in japan is shown in ChimeCast weather display.png
