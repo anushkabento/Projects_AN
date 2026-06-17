@@ -65,3 +65,10 @@ Users can search for locations worldwide and experience local weather conditions
 ##screenshots
 * dashboard is displayed in Chimecast dashboard,chimes.png
 * weather display of kyoto in japan is shown in ChimeCast weather display.png
+
+#### How to Run
+
+1. Download the project files.
+2. Open `index.html` in a modern web browser.
+3. Enter a location and click Search.
+4. view and listen to this audiovisual experience.
